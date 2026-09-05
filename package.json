@@ -1,0 +1,33 @@
+{
+  "name": "codex-bridge-antigravity",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A small local Codex Responses bridge for the official Antigravity CLI.",
+  "type": "module",
+  "bin": {
+    "codex-bridge-antigravity": "./src/cli.mjs"
+  },
+  "scripts": {
+    "serve": "node src/cli.mjs serve",
+    "doctor": "node src/cli.mjs doctor",
+    "setup": "node src/cli.mjs setup",
+    "test": "node --test test/*.test.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jakevin/codex-bridge-antigravity.git"
+  },
+  "author": "Jakevin",
+  "keywords": [
+    "codex",
+    "antigravity",
+    "gemini",
+    "bridge",
+    "responses-api",
+    "openai"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}
