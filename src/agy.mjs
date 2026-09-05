@@ -34,6 +34,7 @@ export function runAgyTurn({
   mode = "accept-edits",
   effort,
   conversationId,
+  addDirs = [],
   timeoutMs = 600_000,
   signal,
   onEvent,
@@ -45,8 +46,10 @@ export function runAgyTurn({
       "--model", model,
       "--mode", mode,
       "--dangerously-skip-permissions",
-      "--add-dir", cwd,
     ];
+    for (const dir of new Set([cwd, ...addDirs])) {
+      if (typeof dir === "string" && dir.trim()) args.push("--add-dir", dir);
+    }
     if (mode !== "plan") args.push("--disable-slash-commands");
     if (effort && ["low", "medium", "high"].includes(effort)) args.push("--effort", effort);
     if (conversationId) args.push("--conversation", conversationId);

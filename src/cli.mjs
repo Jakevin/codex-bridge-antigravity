@@ -245,9 +245,25 @@ async function doctor(options) {
   }
 }
 
+async function refreshCatalog(options) {
+  let config = await freshConfig(options);
+  config = await refreshModels(config);
+  const managedCatalog = buildCodexCatalog(config.models);
+  const managedCatalogPath = catalogPath();
+  atomicWrite(managedCatalogPath, `${JSON.stringify(managedCatalog, null, 2)}\n`);
+  console.log(`Updated model catalog: ${managedCatalogPath}`);
+  console.log(`Models in catalog: ${config.models.length}`);
+}
+
 async function serve(options) {
   let config = await freshConfig(options);
   config = await refreshModels(config);
+  try {
+    const managedCatalog = buildCodexCatalog(config.models);
+    atomicWrite(catalogPath(), `${JSON.stringify(managedCatalog, null, 2)}\n`);
+  } catch (err) {
+    console.error(`Warning: failed to update catalog cache: ${err.message}`);
+  }
   const server = createBridgeServer(config, config.models);
   await listenBridge(server, config);
   console.log(`codex-bridge-antigravity listening on http://${config.host}:${config.port}/v1`);
@@ -273,6 +289,7 @@ async function main() {
   if (command === "doctor") return doctor(options);
   if (command === "serve") return serve(options);
   if (command === "setup") return setup(options);
+  if (command === "refresh-catalog") return refreshCatalog(options);
   if (command === "disconnect") return disconnect();
   throw new Error(`Unknown command: ${command}`);
 }

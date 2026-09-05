@@ -1,8 +1,9 @@
 import { createServer } from "node:http";
 import { createHash, randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import * as zlib from "node:zlib";
 import { agyModelId, isAntigravityModel, isLegacyBridgeModel, routeId } from "./models.mjs";
-import { buildAgyPrompt, encodeCompactionSummary, scrubBridgeArtifactsForNative } from "./prompt.mjs";
+import { buildAgyPrompt, encodeCompactionSummary, hasImageInput, imageCacheDir, scrubBridgeArtifactsForNative } from "./prompt.mjs";
 import { AgyError, runAgyTurn } from "./agy.mjs";
 import { fetchNative, nativeWebSocketHeaders, nativeWebSocketUrl, pipeNativeResponse } from "./native.mjs";
 
@@ -139,7 +140,7 @@ function modelCatalogRows(models) {
     supported_reasoning_levels: [{ effort: effortFromId(model.id), description: "Antigravity model effort" }],
     default_reasoning_level: effortFromId(model.id),
     visibility: "list",
-    input_modalities: ["text"],
+    input_modalities: ["text", "image"],
     context_window: 128000,
     max_context_window: 128000,
     use_responses_lite: false,
@@ -150,6 +151,53 @@ function effortFromId(id) {
   if (/(?:^|-)low$/.test(id)) return "low";
   if (/(?:^|-)medium$/.test(id)) return "medium";
   return "high";
+}
+
+function imagePreflightPrompt(prompt) {
+  const references = String(prompt).split(/\r?\n/)
+    .filter(line => /^\[Image (?:attachment|URL):/.test(line));
+  return [
+    "MANDATORY IMAGE PREFLIGHT. Do not answer the user's request yet.",
+    "First call view_file for every exact [Image attachment: ...] path below, and use the browser/image reading tool for every [Image URL: ...]. Inspect all visual attachments, wait for the tool results, then reply with a concise factual visual description prefixed IMAGE_CONTEXT:.",
+    references.join("\n"),
+  ].filter(Boolean).join("\n\n");
+}
+
+async function runAgyPrompt({ config, selected, payload, prompt, mode, effort, conversationId, signal, onEvent }) {
+  const attachmentDir = imageCacheDir();
+  const addDirs = existsSync(attachmentDir) ? [attachmentDir] : [];
+  let activeConversation = conversationId;
+  let imageContext = "";
+  if (hasImageInput(payload)) {
+    const preflight = await runAgyTurn({
+      agyPath: config.agyPath,
+      cwd: config.cwd,
+      model: selected.agy,
+      prompt: imagePreflightPrompt(prompt),
+      mode,
+      effort,
+      conversationId: activeConversation,
+      addDirs,
+      timeoutMs: config.requestTimeoutSec * 1000,
+      signal,
+    });
+    activeConversation = preflight.conversation_id || activeConversation;
+    imageContext = `\n\nBridge image preflight context (the attachment was inspected by AGY):\n${String(preflight.response || "").trim()}`;
+  }
+  const result = await runAgyTurn({
+    agyPath: config.agyPath,
+    cwd: config.cwd,
+    model: selected.agy,
+    prompt: prompt + imageContext,
+    mode,
+    effort,
+    conversationId: activeConversation,
+    addDirs,
+    timeoutMs: config.requestTimeoutSec * 1000,
+    signal,
+    onEvent,
+  });
+  return result;
 }
 
 function resolveModel(payload, models) {
@@ -190,15 +238,14 @@ async function runAgyResponse({ config, models, payload, conversations, response
   }, sequence);
 
   let sentDelta = false;
-  const result = await runAgyTurn({
-    agyPath: config.agyPath,
-    cwd: config.cwd,
-    model: selected.agy,
+  const result = await runAgyPrompt({
+    config,
+    selected,
+    payload: effectivePayload,
     prompt,
     mode: config.mode,
     effort: effectivePayload.reasoning?.effort,
     conversationId: previous,
-    timeoutMs: config.requestTimeoutSec * 1000,
     signal,
     onEvent: event => {
       const delta = event.kind === "step" && typeof event.step.text_delta === "string"
@@ -255,15 +302,14 @@ async function runAgyCompaction({ config, models, payload, conversations, respon
     || (previous ? "Use the preceding conversation in this AGY session as the source context." : "");
   if (!source) throw new AgyError("input is required for compaction", "INPUT_REQUIRED");
   const prompt = `${source}\n\nSummarize the preceding coding conversation for a later continuation. Preserve the user's goals, relevant decisions, file paths, commands, errors, and unfinished work. Be concise and do not invent facts.`;
-  const result = await runAgyTurn({
-    agyPath: config.agyPath,
-    cwd: config.cwd,
-    model: selected.agy,
+  const result = await runAgyPrompt({
+    config,
+    selected,
+    payload: effectivePayload,
     prompt,
     mode: "plan",
     effort: effectivePayload.reasoning?.effort,
     conversationId: previous,
-    timeoutMs: config.requestTimeoutSec * 1000,
     signal,
   });
   const responseId = `resp_${randomUUID().replaceAll("-", "")}`;

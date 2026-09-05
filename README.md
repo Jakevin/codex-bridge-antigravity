@@ -48,6 +48,10 @@ This allows you to seamlessly switch between GPT and Gemini models directly from
 - **Compaction & History Support**: Full `/v1/responses/compact` handler adhering to OpenAI Compact specifications, enabling seamless automatic conversation compaction.
 - **Single-Command Setup & Rollback**: Safely patches `~/.codex/config.toml` with backup, and provides one-command rollback via `disconnect`.
 
+### Image Input
+
+Antigravity model routes advertise `input_modalities: ["text", "image"]`. Local images are stored as private copies under `~/.codex-bridge-antigravity/cache/images`, made readable by `agy`, and inspected in a required image preflight before the main turn. The bridge recognizes `data:image/...;base64,...`, `file://...`, local file paths, and HTTPS image URLs; native GPT routes remain unchanged.
+
 ---
 
 ## Prerequisites

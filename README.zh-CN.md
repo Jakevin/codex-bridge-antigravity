@@ -48,6 +48,10 @@ OpenAI Codex 的 WebSocket 与 HTTP 端点配置属于 **Provider 层级**（提
 - **对话历史压缩（Compaction）**：完整实现 `/v1/responses/compact` 端点，遵循 OpenAI Compact API 规范，对话过长时平滑自动总结。
 - **一键配置与安全还原**：`setup` 自动备份并修改 `~/.codex/config.toml`；随时可使用 `disconnect` 命令完全还原。
 
+### 图片输入
+
+Antigravity 模型路由会声明 `input_modalities: ["text", "image"]`。本地图片会以私有副本存放在 `~/.codex-bridge-antigravity/cache/images`，供 `agy` 读取，并在主回合前执行必要的图像预检。桥接器支持 `data:image/...;base64,...`、`file://...`、本地文件路径和 HTTPS 图片 URL；原生 GPT 路由保持不变。
+
 ---
 
 ## 前置要求

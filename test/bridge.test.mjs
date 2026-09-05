@@ -52,4 +52,26 @@ test("adds Antigravity routes to a Codex catalog", () => {
   const model = catalog.models.find(model => model.slug === "antigravity/gemini-3.8-flash-low");
   assert.ok(model);
   assert.equal(model.use_responses_lite, false);
+  assert.deepEqual(model.input_modalities, ["text", "image"]);
+});
+
+test("extracts image paths and metadata in buildAgyPrompt", () => {
+  const prompt = buildAgyPrompt({
+    input: [
+      {
+        role: "user",
+        content: [
+          { type: "input_text", text: "Look at this screenshot:" },
+          { type: "input_image", file_path: "/path/to/screenshot.png", name: "screenshot.png" },
+          { type: "image_url", image_url: { url: "https://example.com/remote.png" } },
+          { type: "image", image_url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" },
+        ],
+      },
+    ],
+  });
+  assert.match(prompt, /System instructions:[\s\S]*MANDATORY IMAGE PREFLIGHT/);
+  assert.match(prompt, /\[Image attachment: \/path\/to\/screenshot\.png \(screenshot\.png\)\]/);
+  assert.match(prompt, /MUST call the view_file tool/);
+  assert.match(prompt, /\[Image URL: https:\/\/example\.com\/remote\.png\]/);
+  assert.match(prompt, /\[Image attachment: .*\/cache\/images\/[a-f0-9]+\.png\]/);
 });

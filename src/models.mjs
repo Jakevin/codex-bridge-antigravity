@@ -163,7 +163,7 @@ function buildModel(template, model) {
     description: `Official Antigravity CLI model: ${model.displayName}`,
     visibility: "list",
     supported_in_api: true,
-    input_modalities: ["text"],
+    input_modalities: ["text", "image"],
     tool_mode: null,
     multi_agent_version: "disabled",
     upgrade: null,

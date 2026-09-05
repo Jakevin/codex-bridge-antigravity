@@ -48,6 +48,10 @@ OpenAI Codex の WebSocket および HTTP エンドポイント設定は、個�
 - **会話履歴の自動要約（Compaction）対応**：OpenAI Compact API 仕様に準拠した `/v1/responses/compact` エンドポイントを実装し、コンテキスト上限に近づいた際の自動要約がスムーズに機能します。
 - **ワンコマンドでの設定と復元**：`setup` により `~/.codex/config.toml` を自動バックアップした上で設定し、`disconnect` でいつでも元の設定へ安全に戻せます。
 
+### 画像入力
+
+Antigravity モデルのルートは `input_modalities: ["text", "image"]` を宣言します。ローカル画像は `~/.codex-bridge-antigravity/cache/images` に非公開コピーとして保存され、`agy` が読み取れるようにした上で、メインターンの前に必須の画像確認を実行します。`data:image/...;base64,...`、`file://...`、ローカルファイルパス、HTTPS 画像 URL に対応し、ネイティブ GPT ルートは変更されません。
+
 ---
 
 ## 前提条件
