@@ -110,7 +110,7 @@ curl http://127.0.0.1:17842/v1/responses \
 node src/cli.mjs setup --cwd "$PWD" --replace-codex-route
 ```
 
-重新啟動 Codex Desktop 應用程式或重新開啟 Codex CLI。現在模型選單中除了原生的 GPT 模型外，還會出現 `Antigravity — ...` 模型可供選取。
+重新啟動 Codex Desktop 應用程式或重新開啟 Codex CLI。現在模型選單中除了原生的 GPT 模型外，還會出現 `Gemini 3.8 Flash ...` 模型可供選取。
 
 ### 4. 取消整合與還原
 

@@ -164,7 +164,7 @@ function buildModel(template, model) {
   const result = {
     ...base,
     slug: routeId(model.id),
-    display_name: `Antigravity — ${model.displayName}`,
+    display_name: model.displayName,
     description: `Official Antigravity CLI model: ${model.displayName}`,
     visibility: "list",
     supported_in_api: true,

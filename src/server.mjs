@@ -148,7 +148,7 @@ function rememberResponse(responseStates, payload, response) {
 function modelCatalogRows(models) {
   return models.map(model => ({
     slug: routeId(model.id),
-    display_name: `Antigravity — ${model.displayName}`,
+    display_name: model.displayName,
     description: `Official Antigravity CLI model: ${model.displayName}`,
     supported_in_api: true,
     supported_reasoning_levels: [{ effort: effortFromId(model.id), description: "Antigravity model effort" }],

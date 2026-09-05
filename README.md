@@ -110,7 +110,7 @@ Install the bridge into your local Codex configuration:
 node src/cli.mjs setup --cwd "$PWD" --replace-codex-route
 ```
 
-Restart your Codex Desktop application or restart the Codex CLI. You will now see `Antigravity — ...` models alongside native GPT models in the model dropdown.
+Restart your Codex Desktop application or restart the Codex CLI. You will now see `Gemini 3.8 Flash ...` models alongside native GPT models in the model dropdown.
 
 ### 4. Disconnect & Restore
 

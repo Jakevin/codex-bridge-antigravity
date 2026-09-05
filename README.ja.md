@@ -110,7 +110,7 @@ curl http://127.0.0.1:17842/v1/responses \
 node src/cli.mjs setup --cwd "$PWD" --replace-codex-route
 ```
 
-Codex Desktop アプリまたは Codex CLI を再起動すると、モデル選択メニューにネイティブ GPT モデルと並んで `Antigravity — ...` モデルが表示されます。
+Codex Desktop アプリまたは Codex CLI を再起動すると、モデル選択メニューにネイティブ GPT モデルと並んで `Gemini 3.8 Flash ...` モデルが表示されます。
 
 ### 4. 設定の解除と復元
 

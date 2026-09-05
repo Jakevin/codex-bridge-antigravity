@@ -141,6 +141,7 @@ test("adds Antigravity routes to a Codex catalog", () => {
   const catalog = buildCodexCatalog([{ id: "gemini-3.8-flash-low", displayName: "Gemini 3.8 Flash (Low)" }]);
   const model = catalog.models.find(model => model.slug === "antigravity/gemini-3.8-flash-low");
   assert.ok(model);
+  assert.equal(model.display_name, "Gemini 3.8 Flash (Low)");
   assert.equal(model.use_responses_lite, false);
   assert.deepEqual(model.input_modalities, ["text", "image"]);
   assert.equal(model.context_window, 1_000_000);
