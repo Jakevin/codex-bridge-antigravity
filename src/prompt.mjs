@@ -167,6 +167,18 @@ export function formatImagePart(part) {
   return name ? `[Image attachment: ${name}]` : "[Image attachment]";
 }
 
+function formatToolPart(part) {
+  if (part.type === "custom_tool_call_output" || part.type === "function_call_output") {
+    const output = typeof part.output === "string" ? part.output : contentText(part.output) || JSON.stringify(part.output || "");
+    return `Tool output (${part.name || part.call_id || "tool"}):\n${output}`;
+  }
+  if (part.type === "custom_tool_call" || part.type === "function_call") {
+    const args = typeof part.arguments === "string" ? part.arguments : (part.input !== undefined ? JSON.stringify(part.input) : "");
+    return `Tool call (${part.name || part.call_id || "tool"}):\n${args}`;
+  }
+  return JSON.stringify(part);
+}
+
 function contentText(content) {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
@@ -179,7 +191,9 @@ function contentText(content) {
     if (part.type === "input_image" || part.type === "image" || part.type === "image_url") {
       return formatImagePart(part);
     }
-    if (part.type === "function_call" || part.type === "function_call_output") return JSON.stringify(part);
+    if (part.type === "function_call" || part.type === "function_call_output" || part.type === "custom_tool_call" || part.type === "custom_tool_call_output") {
+      return formatToolPart(part);
+    }
     return "";
   }).filter(Boolean).join("\n");
 }
@@ -209,8 +223,9 @@ function itemText(item) {
   if (item.type === "input_image" || item.type === "image" || item.type === "image_url") {
     return formatImagePart(item);
   }
-  if (item.type === "function_call_output") return `Function output (${item.name || "tool"}):\n${item.output || ""}`;
-  if (item.type === "function_call") return `Function call (${item.name || "tool"}):\n${item.arguments || ""}`;
+  if (item.type === "custom_tool_call_output" || item.type === "function_call_output" || item.type === "custom_tool_call" || item.type === "function_call") {
+    return formatToolPart(item);
+  }
   return contentText(item.content);
 }
 

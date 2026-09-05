@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 
 export const MODEL_PREFIX = "antigravity/";
+export const AGY_CONTEXT_WINDOW = 1_000_000;
+export const AGY_AUTO_COMPACT_TOKEN_LIMIT = 800_000;
 
 export function isAntigravityModel(value) {
   return typeof value === "string" && value.startsWith(MODEL_PREFIX);
@@ -169,10 +171,10 @@ function buildModel(template, model) {
     upgrade: null,
     default_reasoning_level: effort,
     supported_reasoning_levels: [reasoningLevel(template, effort)],
-    context_window: 128000,
-    max_context_window: 128000,
+    context_window: AGY_CONTEXT_WINDOW,
+    max_context_window: AGY_CONTEXT_WINDOW,
     effective_context_window_percent: 100,
-    auto_compact_token_limit: 100000,
+    auto_compact_token_limit: AGY_AUTO_COMPACT_TOKEN_LIMIT,
     use_responses_lite: false,
     additional_speed_tiers: [],
     service_tiers: [],

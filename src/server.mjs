@@ -2,7 +2,14 @@ import { createServer } from "node:http";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import * as zlib from "node:zlib";
-import { agyModelId, isAntigravityModel, isLegacyBridgeModel, routeId } from "./models.mjs";
+import {
+  AGY_AUTO_COMPACT_TOKEN_LIMIT,
+  AGY_CONTEXT_WINDOW,
+  agyModelId,
+  isAntigravityModel,
+  isLegacyBridgeModel,
+  routeId,
+} from "./models.mjs";
 import { buildAgyPrompt, encodeCompactionSummary, hasImageInput, imageCacheDir, scrubBridgeArtifactsForNative } from "./prompt.mjs";
 import { AgyError, runAgyTurn } from "./agy.mjs";
 import { fetchNative, nativeWebSocketHeaders, nativeWebSocketUrl, pipeNativeResponse } from "./native.mjs";
@@ -108,11 +115,18 @@ function inputItems(input) {
   return Array.isArray(input) ? input : [input];
 }
 
-function expandPreviousResponse(payload, responseStates, { native = false, conversations } = {}) {
+export function expandPreviousResponse(payload, responseStates, { native = false, conversations } = {}) {
   const previousId = typeof payload?.previous_response_id === "string"
     ? payload.previous_response_id
     : undefined;
-  if (!previousId || (!native && conversations?.has(previousId))) return payload;
+  if (!previousId) return payload;
+
+  const isPreviousAgy = conversations?.has(previousId);
+  // If target is native and previous was also native -> OpenAI upstream already has the session state
+  if (native && !isPreviousAgy) return payload;
+  // If target is antigravity and previous was also antigravity -> AGY CLI tracks session via conversationId
+  if (!native && isPreviousAgy) return payload;
+
   const state = responseStates.get(previousId);
   if (!state) return payload;
   const expanded = {
@@ -141,8 +155,10 @@ function modelCatalogRows(models) {
     default_reasoning_level: effortFromId(model.id),
     visibility: "list",
     input_modalities: ["text", "image"],
-    context_window: 128000,
-    max_context_window: 128000,
+    context_window: AGY_CONTEXT_WINDOW,
+    max_context_window: AGY_CONTEXT_WINDOW,
+    effective_context_window_percent: 100,
+    auto_compact_token_limit: AGY_AUTO_COMPACT_TOKEN_LIMIT,
     use_responses_lite: false,
   }));
 }
@@ -585,45 +601,68 @@ function acceptWebSocket(config, models, conversations, responseStates, req, soc
 
   let nativeSocket;
   let localAbort;
-  let selectedKind;
   let closed = false;
   let messages = Promise.resolve();
+  const nativePayloadQueue = [];
+  const nativePayloads = new Map();
+  const rememberNativeEvent = event => {
+    const responseId = event?.response?.id;
+    if (event?.type === "response.created" && typeof responseId === "string") {
+      nativePayloads.set(responseId, nativePayloadQueue.shift());
+      return;
+    }
+    if (event?.type === "response.completed" && event.response) {
+      const payload = typeof responseId === "string" ? nativePayloads.get(responseId) : undefined;
+      rememberResponse(responseStates, payload || nativePayloadQueue.shift(), event.response);
+      if (typeof responseId === "string") nativePayloads.delete(responseId);
+    }
+  };
   const peer = attachWebSocket(socket, text => {
+    let payload;
+    try { payload = JSON.parse(text); } catch {
+      peer.close(1007, "Request body must be valid JSON");
+      return;
+    }
+    if (payload?.type === "response.cancel") {
+      localAbort?.abort();
+      if (nativeSocket?.readyState === WebSocket.OPEN) {
+        try { nativeSocket.send(text); } catch { /* upstream is closing */ }
+      }
+      return;
+    }
     messages = messages.then(async () => {
-      let payload;
-      try { payload = JSON.parse(text); } catch {
-        peer.close(1007, "Request body must be valid JSON");
-        return;
-      }
       const requestBody = websocketRequestBody(payload);
-      if (selectedKind === "native") {
-        if (nativeSocket?.readyState === WebSocket.OPEN) nativeSocket.send(text);
-        return;
-      }
-      if (selectedKind === "antigravity") {
-        if (payload.type === "response.cancel") localAbort?.abort();
-        return;
-      }
       const model = websocketModel(requestBody);
       try {
         const selected = resolveModel(requestBody, models);
-        selectedKind = selected.kind;
         if (selected.kind === "native") {
           const nativePayload = scrubBridgeArtifactsForNative(
-            expandPreviousResponse(requestBody, responseStates, { native: true }),
+            expandPreviousResponse(requestBody, responseStates, { native: true, conversations }),
           );
-          nativeSocket = await openNativeWebSocket(config, req, peer, event => {
-            if (event?.type === "response.completed" && event.response) rememberResponse(responseStates, nativePayload, event.response);
-          }, () => {
-            if (!peer.isClosed) peer.close(1011, "Native Responses WebSocket closed");
-          });
-          const outbound = payload?.type === "response.create"
-            ? { ...nativePayload, type: "response.create" }
-            : nativePayload;
-          if (!peer.isClosed) nativeSocket.send(JSON.stringify(outbound));
+          if (!nativeSocket || nativeSocket.readyState !== WebSocket.OPEN) {
+            let openedSocket;
+            openedSocket = await openNativeWebSocket(config, req, peer, rememberNativeEvent, () => {
+              if (nativeSocket === openedSocket) nativeSocket = undefined;
+            });
+            nativeSocket = openedSocket;
+          }
+          if (!peer.isClosed && nativeSocket.readyState === WebSocket.OPEN) {
+            nativePayloadQueue.push(nativePayload);
+            try {
+              const outbound = payload?.type === "response.create"
+                ? { ...nativePayload, type: "response.create" }
+                : nativePayload;
+              nativeSocket.send(JSON.stringify(outbound));
+            } catch (error) {
+              nativePayloadQueue.pop();
+              throw error;
+            }
+          }
           return;
         }
-        localAbort = new AbortController();
+
+        const abort = new AbortController();
+        localAbort = abort;
         const sequenceEmitter = (event, data, sequence) => {
           if (!peer.isClosed) peer.sendJson(responseEvent(event, sequence, data));
         };
@@ -635,7 +674,7 @@ function acceptWebSocket(config, models, conversations, responseStates, req, soc
               payload: requestBody,
               conversations,
               responseStates,
-              signal: localAbort.signal,
+              signal: abort.signal,
             });
             emitCompactionEvents(sequenceEmitter, compacted.response);
           } else {
@@ -645,34 +684,34 @@ function acceptWebSocket(config, models, conversations, responseStates, req, soc
               payload: requestBody,
               conversations,
               responseStates,
-              signal: localAbort.signal,
+              signal: abort.signal,
               emit: sequenceEmitter,
             });
           }
-          if (!peer.isClosed) peer.close(1000);
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           if (!peer.isClosed) {
             const sequence = { value: 0 };
             const failed = responseBody({ id: `resp_${randomUUID().replaceAll("-", "")}`, model: model || "antigravity", text: "", status: "failed" });
             peer.sendJson(responseEvent("response.failed", sequence, { response: failed, error: { type: "server_error", message } }));
-            peer.close(1011, message.slice(0, 120));
           }
+        } finally {
+          if (localAbort === abort) localAbort = undefined;
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (!peer.isClosed) {
-          peer.sendJson({ type: "error", error: { type: "invalid_request_error", message } });
-          peer.close(1008, message.slice(0, 120));
-        }
+        if (!peer.isClosed) peer.sendJson({ type: "error", error: { type: "invalid_request_error", message } });
       }
-    }).catch(() => {
-      if (!peer.isClosed) peer.close(1011, "WebSocket request failed");
+    }).catch(error => {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!peer.isClosed) peer.sendJson({ type: "error", error: { type: "server_error", message } });
     });
   }, () => {
     if (closed) return;
     closed = true;
     localAbort?.abort();
+    nativePayloadQueue.length = 0;
+    nativePayloads.clear();
     if (nativeSocket && nativeSocket.readyState < WebSocket.CLOSING) nativeSocket.close();
   });
   peer.feed(head);
@@ -807,7 +846,7 @@ export function createBridgeServer(config, models) {
       const selected = resolveModel(payload, models);
       if (selected.kind === "native") {
         const nativePayload = scrubBridgeArtifactsForNative(
-          expandPreviousResponse(payload, responseStates, { native: true }),
+          expandPreviousResponse(payload, responseStates, { native: true, conversations }),
         );
         await proxyNative(config, req, res, url.pathname.endsWith("/compact") ? "responses/compact" : "responses", nativePayload, responseStates);
         return;
