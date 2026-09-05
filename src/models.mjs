@@ -19,17 +19,6 @@ export const FALLBACK_AGY_MODELS = [
   ["gemini-3.8-flash-high", "Gemini 3.8 Flash (High)"],
   ["gemini-3.8-flash-medium", "Gemini 3.8 Flash (Medium)"],
   ["gemini-3.8-flash-low", "Gemini 3.8 Flash (Low)"],
-  ["gemini-3.7-flash-high", "Gemini 3.7 Flash (High)"],
-  ["gemini-3.7-flash-medium", "Gemini 3.7 Flash (Medium)"],
-  ["gemini-3.7-flash-low", "Gemini 3.7 Flash (Low)"],
-  ["gemini-3.6-flash-high", "Gemini 3.6 Flash (High)"],
-  ["gemini-3.6-flash-medium", "Gemini 3.6 Flash (Medium)"],
-  ["gemini-3.6-flash-low", "Gemini 3.6 Flash (Low)"],
-  ["gemini-3.1-pro-high", "Gemini 3.1 Pro (High)"],
-  ["gemini-3.1-pro-low", "Gemini 3.1 Pro (Low)"],
-  ["claude-sonnet-4-6", "Claude Sonnet 4.6 (Thinking)"],
-  ["claude-opus-4-6-thinking", "Claude Opus 4.6 (Thinking)"],
-  ["gpt-oss-120b-medium", "GPT-OSS 120B (Medium)"],
 ].map(([id, displayName]) => ({ id, displayName }));
 
 function runAgyModels(agyPath, timeoutMs = 30_000) {
@@ -89,9 +78,23 @@ function dedupeModels(models) {
   });
 }
 
+export function isAllowedAgyModel(modelOrId) {
+  const rawId = typeof modelOrId === "string" ? modelOrId : modelOrId?.id;
+  if (typeof rawId !== "string") return false;
+  const id = agyModelId(rawId);
+  const match = id.match(/^gemini-(\d+)(?:\.(\d+))?-flash(?:-(high|medium|low))?$/i);
+  if (!match) return false;
+  const major = parseInt(match[1], 10);
+  const minor = match[2] ? parseInt(match[2], 10) : 0;
+  if (major > 3) return true;
+  if (major === 3 && minor >= 8) return true;
+  return false;
+}
+
 export async function discoverAgyModels(agyPath) {
   const parsed = parseAgyModels(await runAgyModels(agyPath));
-  return parsed.length > 0 ? parsed : FALLBACK_AGY_MODELS;
+  const available = parsed.length > 0 ? parsed : FALLBACK_AGY_MODELS;
+  return available.filter(isAllowedAgyModel);
 }
 
 export function routeId(modelId) {

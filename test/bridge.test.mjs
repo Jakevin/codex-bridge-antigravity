@@ -13,7 +13,7 @@ import {
   encodeCompactionSummary,
   scrubBridgeArtifactsForNative,
 } from "../src/prompt.mjs";
-import { buildCodexCatalog, parseAgyModels } from "../src/models.mjs";
+import { buildCodexCatalog, isAllowedAgyModel, parseAgyModels } from "../src/models.mjs";
 import { createBridgeServer, expandPreviousResponse, listenBridge } from "../src/server.mjs";
 
 const WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -92,6 +92,22 @@ test("parses AGY stream-json events", () => {
 test("parses the live agy models table shape", () => {
   const models = parseAgyModels("gemini-3.8-flash-low    Gemini 3.8 Flash (Low)\nclaude-sonnet-4-6  Claude Sonnet 4.6 (Thinking)");
   assert.deepEqual(models.map(model => model.id), ["gemini-3.8-flash-low", "claude-sonnet-4-6"]);
+});
+
+test("filters models to Gemini 3.8 Flash and newer", () => {
+  assert.equal(isAllowedAgyModel("gemini-3.8-flash-high"), true);
+  assert.equal(isAllowedAgyModel("gemini-3.8-flash-medium"), true);
+  assert.equal(isAllowedAgyModel("gemini-3.8-flash-low"), true);
+  assert.equal(isAllowedAgyModel("gemini-3.9-flash-high"), true);
+  assert.equal(isAllowedAgyModel("gemini-4.0-flash"), true);
+  assert.equal(isAllowedAgyModel("antigravity/gemini-3.8-flash-high"), true);
+  assert.equal(isAllowedAgyModel({ id: "antigravity/gemini-3.8-flash-low" }), true);
+
+  assert.equal(isAllowedAgyModel("gemini-3.7-flash-high"), false);
+  assert.equal(isAllowedAgyModel("gemini-3.6-flash-low"), false);
+  assert.equal(isAllowedAgyModel("gemini-3.1-pro-high"), false);
+  assert.equal(isAllowedAgyModel("claude-sonnet-4-6"), false);
+  assert.equal(isAllowedAgyModel("gpt-oss-120b-medium"), false);
 });
 
 test("builds a prompt from Responses input", () => {
