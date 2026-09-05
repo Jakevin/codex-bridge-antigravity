@@ -4,6 +4,8 @@
 
 轻量级本地 OpenAI Responses API 桥接器，将 Google Antigravity 官方 CLI (`agy`) 无缝集成至 OpenAI Codex（支持 Desktop 与 CLI），同时完整保留原生 GPT 模型的路由与认证机制。
 
+![Codex 模型菜单显示原生 GPT 与 Antigravity 模型](assets/model-selector.png)
+
 ---
 
 ## 项目概述

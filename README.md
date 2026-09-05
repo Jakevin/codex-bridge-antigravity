@@ -4,6 +4,8 @@
 
 A lightweight local OpenAI Responses API bridge that seamlessly integrates the official Google Antigravity CLI (`agy`) into OpenAI Codex (Desktop & CLI), while preserving native GPT model routing and authentication.
 
+![Codex model picker showing native GPT and Antigravity models](assets/model-selector.png)
+
 ---
 
 ## Overview

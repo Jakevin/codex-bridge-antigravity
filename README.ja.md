@@ -4,6 +4,8 @@
 
 公式 Google Antigravity CLI (`agy`) を OpenAI Codex（Desktop および CLI）にシームレスに統合し、ネイティブ GPT モデルのルーティングと認証をそのまま維持する軽量ローカル OpenAI Responses API ブリッジです。
 
+![ネイティブ GPT と Antigravity モデルを表示する Codex モデルメニュー](assets/model-selector.png)
+
 ---
 
 ## 概要
